@@ -1,22 +1,23 @@
-name: Free Windows RDP Forever
+name: Free Windows RDP Forever 1min Restart
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */5 * * *'  # auto start every 5 hours
+    - cron: '0 */5 * * *'
 
 jobs:
   rdp:
     runs-on: windows-latest
-    timeout-minutes: 340  # 5h 40min (GitHub limit is 6h)
+    timeout-minutes: 330
     steps:
-      - name: Enable RDP Forever
+      - name: Enable RDP
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -value 0
-          net user runneradmin Bobby123! /add
+          net user runneradmin Bobby123! /add 2>$null; net user runneradmin Bobby123!
           net localgroup "Administrators" runneradmin /add
           net localgroup "Remote Desktop Users" runneradmin /add
+          Write-Host "RDP Enabled - runneradmin / Bobby123!"
 
       - name: Install Tailscale
         run: |
@@ -27,17 +28,21 @@ jobs:
       - name: Connect Tailscale
         run: |
           $ts = "C:\Program Files\Tailscale\tailscale.exe"
-          & $ts up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=win-forever-${{ github.run_id }}
+          & $ts up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=win-1min-${{ github.run_id }}
           & $ts ip -4
-          echo "=== USE THIS IP TO CONNECT ==="
-          & $ts ip -4
+          echo "=== COPY THIS IP ==="
 
-      - name: Keep Alive 5h 40m
+      - name: Keep Alive 5h 30m
         run: |
-          Write-Host "USER: runneradmin PASS: Bobby123! - RUNNING FOREVER MODE"
-          Write-Host "This will auto-restart after 5h 40m"
-          $end = (Get-Date).AddMinutes(330)
+          $end = (Get-Date).AddMinutes(325)
           while ((Get-Date) -lt $end) {
-            Write-Host "[$(Get-Date)] - Running... will auto-restart at $end"
+            Write-Host "Running... restart at $end - $(Get-Date)"
             Start-Sleep 60
           }
+
+      - name: Restart in 1 Minute
+        if: always()
+        run: |
+          Write-Host "Restarting in 60 seconds..."
+          Start-Sleep 60
+          curl -X POST -H "Authorization: token ${{ secrets.GH_PAT }}" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/${{ github.repository }}/actions/workflows/rdp.yml/dispatches -d '{"ref":"main"}'
