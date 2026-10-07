@@ -1,27 +1,43 @@
-name: Free Windows RDP
-on: workflow_dispatch
+name: Free Windows RDP Forever
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */5 * * *'  # auto start every 5 hours
+
 jobs:
   rdp:
     runs-on: windows-latest
-    timeout-minutes: 360
+    timeout-minutes: 340  # 5h 40min (GitHub limit is 6h)
     steps:
-      - name: Enable RDP
+      - name: Enable RDP Forever
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          net user runneradmin Bobby123!
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -value 0
+          net user runneradmin Bobby123! /add
+          net localgroup "Administrators" runneradmin /add
+          net localgroup "Remote Desktop Users" runneradmin /add
+
       - name: Install Tailscale
         run: |
           Invoke-WebRequest -Uri https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe -OutFile tailscale-setup.exe
           Start-Process .\tailscale-setup.exe -ArgumentList "/quiet" -Wait
           Start-Sleep 15
+
       - name: Connect Tailscale
         run: |
           $ts = "C:\Program Files\Tailscale\tailscale.exe"
-          & $ts up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=win-${{ github.run_id }}
+          & $ts up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=win-forever-${{ github.run_id }}
           & $ts ip -4
-          & $ts status
-      - name: Keep Alive
+          echo "=== USE THIS IP TO CONNECT ==="
+          & $ts ip -4
+
+      - name: Keep Alive 5h 40m
         run: |
-          Write-Host "USER: runneradmin PASS: Bobby123!"
-          while ($true) { Write-Host "Running... $(Get-Date)"; Start-Sleep 60 }
+          Write-Host "USER: runneradmin PASS: Bobby123! - RUNNING FOREVER MODE"
+          Write-Host "This will auto-restart after 5h 40m"
+          $end = (Get-Date).AddMinutes(330)
+          while ((Get-Date) -lt $end) {
+            Write-Host "[$(Get-Date)] - Running... will auto-restart at $end"
+            Start-Sleep 60
+          }
