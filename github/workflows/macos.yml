@@ -1,0 +1,38 @@
+name: Free macOS 24-7 Same IP
+on: workflow_dispatch
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 330
+    steps:
+      - name: Enable Screen Sharing (VNC)
+        run: |
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -clientopts -setvnclegacy -vnclegacy yes -clientopts -setvncpw -vncpw Bobby123! -restart -agent -privs -all
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -restart -configure -allowAccessFor -allUsers
+          echo "VNC Password: Bobby123!"
+
+      - name: Install Tailscale
+        run: |
+          brew install tailscale
+          sudo tailscaled install-system-daemon
+          sleep 5
+
+      - name: Connect Tailscale - SAME IP
+        run: |
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=mac-bobby-24-7
+          tailscale ip -4
+          echo "=== SAVE THIS IP FOR macOS ==="
+          tailscale ip -4
+
+      - name: Keep Alive 24/7
+        run: |
+          echo "macOS IS RUNNING! Connect with VNC Viewer"
+          echo "Password: Bobby123!"
+          for i in {1..320}; do
+            echo "Running 24/7 - $i/320 - $(date)"
+            sleep 60
+          done
+          # Auto restart for 24/7
+          curl -X POST -H "Authorization: token ${{ secrets.GH_PAT }}" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/${{ github.repository }}/actions/workflows/macos.yml/dispatches -d '{"ref":"main"}'
+          sleep 60
