@@ -1,35 +1,38 @@
-name: Free Windows RDP
+name: Windows RDP Working
 on: workflow_dispatch
+
 jobs:
   rdp:
     runs-on: windows-latest
-    timeout-minutes: 360
+    timeout-minutes: 340
     steps:
       - name: Enable RDP
         run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -value 1
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
+          net user runneradmin Bobby123! /add /Y 2>&1 | Out-Null
           net user runneradmin Bobby123!
+          net localgroup Administrators runneradmin /add 2>&1 | Out-Null
+          Write-Host "RDP Ready - runneradmin / Bobby123!"
+
       - name: Install Tailscale
         run: |
-          $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe"
-          Invoke-WebRequest -Uri $url -OutFile tailscale-setup.exe
-          Start-Process -FilePath .\tailscale-setup.exe -ArgumentList "/quiet" -Wait
+          choco install tailscale -y --no-progress
           Start-Sleep 10
+
       - name: Connect to Tailscale
         run: |
-          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=gh-win-${{ github.run_id }}
-          & "C:\Program Files\Tailscale\tailscale.exe" ip -4
-          & "C:\Program Files\Tailscale\tailscale.exe" status
+          tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=win-vps-bobby
+          Start-Sleep 5
+          tailscale ip -4
+          Write-Host "==== COPY THIS IP - THIS IS YOUR WINDOWS IP ===="
+          tailscale ip -4
+
       - name: Keep Alive
         run: |
-          echo "================================"
-          echo "Username: runneradmin"
-          echo "Password: Bobby123!"
-          echo "Check IP above - use that to connect"
-          echo "================================"
+          Write-Host "VPS IS RUNNING - Connect with runneradmin / Bobby123!"
           while ($true) {
-            echo "[$(Get-Date)] VPS is running - Don't close this!"
+            Write-Host "Running at $(Get-Date)"
             Start-Sleep 60
           }
